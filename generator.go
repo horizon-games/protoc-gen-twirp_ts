@@ -10,7 +10,12 @@ import (
 
 func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, error) {
 	res := &plugin.CodeGeneratorResponse{
-		File: []*plugin.CodeGeneratorResponse_File{},
+		File: []*plugin.CodeGeneratorResponse_File{
+			{
+				Name:    &twirpFileName,
+				Content: &twirpSource,
+			},
+		},
 	}
 
 	for _, file := range req.GetProtoFile() {
