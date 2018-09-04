@@ -222,8 +222,6 @@ func fromJSON(f fieldValues) string {
 			return fmt.Sprintf("m.%s.map((v) => {return %s(v)})", f.Name, upperCaseFirst(singularType))
 		}
 
-		// Is a native type?
-		log.Printf("singularType: %v, type: %v", singularType, f.Type)
 		return fmt.Sprintf("m.%s.map(JSONTo%s)", f.Name, singularType)
 	}
 
@@ -239,7 +237,7 @@ func toJSON(f fieldValues) string {
 
 	}
 	if strings.HasSuffix(f.Type, "Model") {
-		return fmt.Sprintf("%sToJSON(this.%s)", f.Type, camelCase(f.Name))
+		return fmt.Sprintf("%sToJSON(m.%s)", f.Type, camelCase(f.Name))
 	}
-	return "this." + camelCase(f.Name)
+	return "m." + camelCase(f.Name)
 }
