@@ -152,7 +152,8 @@ func camelCase(s string) string {
 
 func tsFileName(name string) string {
 	base := path.Base(name)
-	name = name[:len(base)-len(path.Ext(base))]
+
+	name = name[0 : len(name)-len(path.Ext(base))]
 
 	return name + ".ts"
 }
