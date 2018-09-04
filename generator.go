@@ -110,14 +110,14 @@ func protoToTSType(f *descriptor.FieldDescriptorProto) (string, string) {
 			tsType = "Date"
 			jsonType = "string"
 		} else {
-			tsType = removePkg(name)
+			tsType = removePkg(name) + "Model"
 			jsonType = removePkg(name) + "JSON"
 		}
 	}
 
 	if isRepeated(f) {
-		tsType = tsType + "Model[]"
-		jsonType = jsonType + "JSON[]"
+		tsType = tsType + "[]"
+		jsonType = jsonType + "[]"
 	}
 
 	return tsType, jsonType
@@ -130,6 +130,10 @@ func isRepeated(field *descriptor.FieldDescriptorProto) bool {
 func removePkg(s string) string {
 	p := strings.Split(s, ".")
 	return p[len(p)-1]
+}
+
+func upperCaseFirst(s string) string {
+	return strings.ToUpper(s[0:1]) + strings.ToLower(s[1:])
 }
 
 func camelCase(s string) string {

@@ -91,21 +91,21 @@ export class {{.Name}} implements {{.Type}} {
   {{range .Fields -}}
     {{.Name | camelCase}}: {{.Type}};
   {{end}}
+}
 
-  toJSON(): {{.JSONType}} {
-    return {
-      {{range .Fields}}
-        {{.Name}}: this.{{.Name | camelCase}},
-      {{end}}
-    }
+const {{.Type}}ToJSON = (m: {{.Type}}): {{.JSONType}} => {
+  return {
+    {{range .Fields -}}
+      {{.Name}}: {{. | toJSON -}},
+    {{end -}}
   }
 }
 
 const JSONTo{{.Name}} = (m: {{.JSONType}}): {{.Type}} => {
-  return {
-    {{range .Fields}}
-      {{.Name | camelCase}}: {{. | fromJSON}},
-    {{end}}
+  return <{{.Name}}>{
+    {{range .Fields -}}
+      {{.Name | camelCase}}: {{. | fromJSON -}},
+    {{end -}}
   }
 }
 `
@@ -174,6 +174,12 @@ func jsonName(name string) string {
 }
 
 func jsonType(name string) string {
+	if strings.HasSuffix(name, "Model[]") {
+		return name[0:len(name)-7] + "JSON[]"
+	}
+	if strings.HasSuffix(name, "Model") {
+		return name[0:len(name)-5] + "JSON"
+	}
 	return name
 }
 
@@ -187,6 +193,7 @@ func compileAndExecute(tpl string, data interface{}) (string, error) {
 		"jsonName":     jsonName,
 		"jsonType":     jsonType,
 		"fromJSON":     fromJSON,
+		"toJSON":       toJSON,
 		"argumentName": argumentName,
 	}
 
@@ -205,8 +212,34 @@ func compileAndExecute(tpl string, data interface{}) (string, error) {
 
 func fromJSON(f fieldValues) string {
 	if f.IsRepeated {
-		singularType := f.Type[0 : len(f.Type)-7]
+		singularType := f.Type[0 : len(f.Type)-2] // Remove []
+		if strings.HasSuffix(singularType, "Model") {
+			singularType = singularType[0 : len(singularType)-5] // Remove "Model"
+		}
+
+		switch singularType {
+		case "string", "number", "boolean":
+			return fmt.Sprintf("m.%s.map((v) => {return %s(v)})", f.Name, upperCaseFirst(singularType))
+		}
+
+		// Is a native type?
+		log.Printf("singularType: %v, type: %v", singularType, f.Type)
 		return fmt.Sprintf("m.%s.map(JSONTo%s)", f.Name, singularType)
 	}
+
+	if strings.HasSuffix(f.Type, "Model") {
+		return fmt.Sprintf("JSONTo%s(m.%s)", upperCaseFirst(f.Name), f.Name)
+	}
+
 	return "m." + f.Name
+}
+
+func toJSON(f fieldValues) string {
+	if f.IsRepeated {
+
+	}
+	if strings.HasSuffix(f.Type, "Model") {
+		return fmt.Sprintf("%sToJSON(this.%s)", f.Type, camelCase(f.Name))
+	}
+	return "this." + camelCase(f.Name)
 }
