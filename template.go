@@ -12,6 +12,40 @@ type Compilable interface {
 	Compile() (string, error)
 }
 
+type importValues struct {
+	Name string
+	Path string
+}
+
+const importTemplate = `` +
+	`import * as {{.Name}} from './{{.Path -}}'
+`
+
+func (iv *importValues) Compile() (string, error) {
+	return compileAndExecute(importTemplate, iv)
+}
+
+type enumKeyVal struct {
+	Name  string
+	Value int32
+}
+
+type enumValues struct {
+	Name   string
+	Values []*enumKeyVal
+}
+
+const enumTemplate = `
+{{$enumName := .Name -}}
+{{- range .Values -}}
+export const {{$enumName}}_{{.Name}} = {{.Value}};
+{{end -}}
+`
+
+func (ev *enumValues) Compile() (string, error) {
+	return compileAndExecute(enumTemplate, ev)
+}
+
 type serviceValues struct {
 	Name    string
 	Package string
@@ -28,7 +62,7 @@ export interface {{.Name}}Interface {
 export class {{.Name}} implements {{.Name}}Interface {
   private hostname: string;
   private fetch: Fetch;
-  private path = "/twirp/{{.Name}}/";
+  private path = "/twirp/{{.Package}}.{{.Name}}/";
 
   constructor(hostname: string, fetch: Fetch) {
     this.hostname = hostname
@@ -38,7 +72,7 @@ export class {{.Name}} implements {{.Name}}Interface {
   {{range .Methods}}
     {{.Name | methodName}}({{.InputType | argumentName}}: {{.InputType | typeName}}): Promise<{{.OutputType | modelName}}> {
       const url = this.hostname + this.path + "{{.Name}}";
-      return this.fetch(createTwirpRequest(url, {{.InputType | argumentName}}.toJSON())).then((res) => {
+      return this.fetch(createTwirpRequest(url, {{.InputType | modelName}}ToJSON({{.InputType | argumentName}}))).then((res) => {
         if (!res.ok) {
           return throwTwirpError(res);
         }
@@ -81,7 +115,7 @@ export interface {{.Type}} {
   {{end}}
 }
 
-interface {{.JSONType}} {
+export interface {{.JSONType}} {
   {{range .Fields -}}
     {{.Name | jsonName}}: {{.Type | jsonType}};
   {{end}}
@@ -93,7 +127,7 @@ export class {{.Name}} implements {{.Type}} {
   {{end}}
 }
 
-const {{.Type}}ToJSON = (m: {{.Type}}): {{.JSONType}} => {
+export const {{.Type}}ToJSON = (m: {{.Type}}): {{.JSONType}} => {
   return {
     {{range .Fields -}}
       {{.Name}}: {{. | toJSON -}},
@@ -101,7 +135,7 @@ const {{.Type}}ToJSON = (m: {{.Type}}): {{.JSONType}} => {
   }
 }
 
-const JSONTo{{.Name}} = (m: {{.JSONType}}): {{.Type}} => {
+export const JSONTo{{.Name}} = (m: {{.JSONType}}): {{.Type}} => {
   return <{{.Name}}>{
     {{range .Fields -}}
       {{.Name | camelCase}}: {{. | fromJSON -}},
@@ -117,28 +151,45 @@ func (mv *messageValues) Compile() (string, error) {
 type protoFile struct {
 	Messages []*messageValues
 	Services []*serviceValues
+	Enums    []*enumValues
+	Imports  map[string]*importValues
 }
 
 var protoTemplate = `
+{{if .Imports}}
+{{range .Imports}}
+{{. | compile -}}
+{{end}}
+{{end}}
+
+{{if .Services -}}
 import {
 	createTwirpRequest,
 	Fetch,
 	throwTwirpError
-} from "./twirp";
+} from './twirp';
+{{end -}}
 
-{{if .Messages}}
+{{- if .Enums -}}
+// Enums
+{{- range .Enums -}}
+{{. | compile -}}
+{{end}}
+{{end -}}
+
+{{- if .Messages -}}
 // Messages
-{{range .Messages}}
-{{. | compile}}
+{{- range .Messages -}}
+{{. | compile -}}
 {{end}}
-{{end}}
+{{end -}}
 
-{{if .Services}}
+{{if .Services -}}
 // Services
-{{range .Services}}
-{{. | compile}}
+{{range .Services -}}
+{{. | compile -}}
 {{end}}
-{{end}}
+{{end -}}
 `
 
 func compile(c Compilable) string {
