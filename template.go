@@ -41,7 +41,8 @@ const enumTemplate = `
 {{- $enumName := .Name}}
 export const {{$enumName}} = {
   {{- range $i, $v := .Values}}
-  {{if $i}}, {{end}}{{$v.Name}}: {{$v.Value}}
+  {{- if $i}},{{end}}
+  {{$v.Name}}: {{$v.Value}}
   {{- end}}
 }
 `
@@ -134,7 +135,8 @@ export class {{.Name}} implements {{.Type}} {
 export const {{.Type}}ToJSON = (m: {{.Type}}): {{.JSONType}} => {
   return {
     {{- range $i, $v := .Fields}}
-    {{if $i}}, {{end}}{{$v.Name}}: {{. | toJSON}}
+    {{- if $i}},{{end}}
+    {{$v.Name}}: {{. | toJSON}}
     {{- end}}
   }
 }
@@ -142,7 +144,8 @@ export const {{.Type}}ToJSON = (m: {{.Type}}): {{.JSONType}} => {
 export const JSONTo{{.Name}} = (m: {{.JSONType}}): {{.Type}} => {
   return <{{.Name}}>{
     {{- range $i, $v := .Fields}}
-    {{if $i}}, {{end}}{{.Name | camelCase}}: {{. | fromJSON -}}
+    {{- if $i}},{{end}}
+    {{.Name | camelCase}}: {{. | fromJSON -}}
     {{- end}}
   }
 }
