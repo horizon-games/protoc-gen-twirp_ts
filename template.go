@@ -40,8 +40,8 @@ type enumValues struct {
 const enumTemplate = `
 {{- $enumName := .Name}}
 export const {{$enumName}} = {
-  {{- range .Values}}
-  {{.Name}}: {{.Value}}
+  {{- range $i, $v := .Values}}
+  {{if $i}}, {{end}}{{$v.Name}}: {{$v.Value}}
   {{- end}}
 }
 `
@@ -76,7 +76,7 @@ export class {{.Name}} implements {{.Name}}Interface {
   {{range .Methods}}
   {{.Name | methodName}}({{.InputType | argumentName}}: {{.InputType}}): Promise<{{.OutputType | modelName}}> {
     const url = this.hostname + this.path + '{{.Name}}'
-    return this.fetch(createTwirpRequest(url, {{.InputType | modelName | typeToJSON}}({{.InputType | argumentName}}))).then((res) => {
+    return this.fetch(url, createTwirpRequest({{.InputType | modelName | typeToJSON}}({{.InputType | argumentName}}))).then((res) => {
       if (!res.ok) {
         return throwTwirpError(res)
       }
@@ -133,16 +133,16 @@ export class {{.Name}} implements {{.Type}} {
 
 export const {{.Type}}ToJSON = (m: {{.Type}}): {{.JSONType}} => {
   return {
-    {{- range .Fields}}
-    {{.Name}}: {{. | toJSON}}
+    {{- range $i, $v := .Fields}}
+    {{if $i}}, {{end}}{{$v.Name}}: {{. | toJSON}}
     {{- end}}
   }
 }
 
 export const JSONTo{{.Name}} = (m: {{.JSONType}}): {{.Type}} => {
   return <{{.Name}}>{
-    {{- range .Fields}}
-    {{.Name | camelCase}}: {{. | fromJSON -}}
+    {{- range $i, $v := .Fields}}
+    {{if $i}}, {{end}}{{.Name | camelCase}}: {{. | fromJSON -}}
     {{- end}}
   }
 }
