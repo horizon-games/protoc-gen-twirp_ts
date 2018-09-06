@@ -3,7 +3,10 @@ package main
 var twirpFileName = "twirp.ts"
 
 // based on https://github.com/larrymyers/protoc-gen-twirp_typescript/blob/master/example/ts_client/twirp.ts
-var twirpSource = `export interface TwirpErrorJSON {
+var twirpSource = `
+import fetch from 'node-fetch';
+
+export interface TwirpErrorJSON {
     code: string;
     msg: string;
     meta: {[index:string]: string};
@@ -25,8 +28,8 @@ export const throwTwirpError = (resp: Response) => {
     return resp.json().then((err: TwirpErrorJSON) => { throw new TwirpError(err); })
 };
 
-export const createTwirpRequest = (url: string, body: object): Request => {
-    return new Request(url, {
+export const createTwirpRequest = (url: string, body: object): fetch.Request => {
+    return new fetch.Request(url, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"

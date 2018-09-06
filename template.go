@@ -278,14 +278,14 @@ func fromJSON(f fieldValues) string {
 
 		switch singularType {
 		case "string", "number", "boolean":
-			return fmt.Sprintf("m.%s.map((v) => {return %s(v)})", f.Name, upperCaseFirst(singularType))
+			return fmt.Sprintf("(m.%s || []).map((v) => {return %s(v)})", f.Name, upperCaseFirst(singularType))
 		}
 
 		if strings.HasSuffix(singularType, "Model") {
 			singularType = singularType[0 : len(singularType)-5]
 		}
 
-		return fmt.Sprintf("m.%s.map(%s)", f.Name, jsonToType(singularType))
+		return fmt.Sprintf("(m.%s || []).map(%s)", f.Name, jsonToType(singularType))
 	}
 
 	if strings.HasSuffix(f.Type, "Model") {
@@ -300,9 +300,9 @@ func toJSON(f fieldValues) string {
 		singularType := f.Type[0 : len(f.Type)-2] // Remove []
 		switch singularType {
 		case "string", "number", "boolean":
-			return fmt.Sprintf("m.%s.map((v) => {return %s(v)})", camelCase(f.Name), upperCaseFirst(singularType))
+			return fmt.Sprintf("(m.%s || []).map((v) => {return %s(v)})", camelCase(f.Name), upperCaseFirst(singularType))
 		}
-		return fmt.Sprintf("m.%s.map(%sToJSON)", camelCase(f.Name), singularType)
+		return fmt.Sprintf("(m.%s || []).map(%sToJSON)", camelCase(f.Name), singularType)
 	}
 	if strings.HasSuffix(f.Type, "Model") {
 		return fmt.Sprintf("%sToJSON(m.%s)", f.Type, camelCase(f.Name))
