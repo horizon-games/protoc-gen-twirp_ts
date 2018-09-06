@@ -20,7 +20,7 @@ type importValues struct {
 const importTemplate = `
 {{- if ne .Name "timestamp" -}}
 import * as {{.Name}} from './{{.Path}}'
-{{- end -}}
+{{end -}}
 `
 
 func (iv *importValues) Compile() (string, error) {
@@ -167,7 +167,6 @@ var protoTemplate = `
 {{- end}}
 
 {{- if .Services}}
-
 import {
   createTwirpRequest,
   Fetch,
@@ -176,7 +175,6 @@ import {
 {{- end}}
 
 {{- if .Enums}}
-
 // Enums
 {{- range .Enums}}
 {{- . | compile}}
