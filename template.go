@@ -37,9 +37,11 @@ type enumValues struct {
 
 const enumTemplate = `
 {{$enumName := .Name -}}
-{{- range .Values -}}
-export const {{$enumName}}_{{.Name}} = {{.Value}};
-{{end -}}
+export const {{$enumName}} = {
+{{range .Values}}
+	{{.Name}}: {{.Value}},
+{{- end}}
+}
 `
 
 func (ev *enumValues) Compile() (string, error) {
@@ -55,7 +57,7 @@ type serviceValues struct {
 var serviceTemplate = `
 export interface {{.Name}}Interface {
 {{range .Methods}}
-  {{.Name | methodName}}: ({{.InputType | argumentName}}: {{.InputType | typeName}}) => Promise<{{.OutputType | modelName}}>
+  {{.Name | methodName}}: ({{.InputType | argumentName}}: {{.InputType}}) => Promise<{{.OutputType | modelName}}>
 {{end}}
 }
 
@@ -70,15 +72,15 @@ export class {{.Name}} implements {{.Name}}Interface {
   }
 
   {{range .Methods}}
-    {{.Name | methodName}}({{.InputType | argumentName}}: {{.InputType | typeName}}): Promise<{{.OutputType | modelName}}> {
-      const url = this.hostname + this.path + "{{.Name}}";
-      return this.fetch(createTwirpRequest(url, {{.InputType | modelName}}ToJSON({{.InputType | argumentName}}))).then((res) => {
-        if (!res.ok) {
-          return throwTwirpError(res);
-        }
-        return res.json().then(JSONTo{{.OutputType | typeName}})
-      })
-    }
+	{{.Name | methodName}}({{.InputType | argumentName}}: {{.InputType}}): Promise<{{.OutputType | modelName}}> {
+		const url = this.hostname + this.path + '{{.Name}}';
+		return this.fetch(createTwirpRequest(url, {{.InputType | modelName | typeToJSON}}({{.InputType | argumentName}}))).then((res) => {
+			if (!res.ok) {
+				return throwTwirpError(res);
+			}
+			return res.json().then({{.OutputType | jsonToType}})
+		})
+	}
   {{end}}
 }
 `
@@ -209,15 +211,11 @@ func methodName(method string) string {
 }
 
 func argumentName(method string) string {
-	return methodName(typeName(method))
-}
-
-func typeName(name string) string {
-	return removePkg(name)
+	return "_" + methodName(removePkg(method))
 }
 
 func modelName(name string) string {
-	return removePkg(name) + "Model"
+	return name + "Model"
 }
 
 func jsonName(name string) string {
@@ -239,12 +237,13 @@ func compileAndExecute(tpl string, data interface{}) (string, error) {
 		"camelCase":    camelCase,
 		"compile":      compile,
 		"methodName":   methodName,
-		"typeName":     typeName,
 		"modelName":    modelName,
 		"jsonName":     jsonName,
 		"jsonType":     jsonType,
 		"fromJSON":     fromJSON,
 		"toJSON":       toJSON,
+		"jsonToType":   jsonToType,
+		"typeToJSON":   typeToJSON,
 		"argumentName": argumentName,
 	}
 
@@ -261,23 +260,36 @@ func compileAndExecute(tpl string, data interface{}) (string, error) {
 	return buf.String(), nil
 }
 
+func typeToJSON(s string) string {
+	return s + "ToJSON"
+}
+
+func jsonToType(typeName string) string {
+	typeChunks := strings.SplitN(typeName, ".", 2)
+	if len(typeChunks) > 1 {
+		return fmt.Sprintf("%s.JSONTo%s", typeChunks[0], typeChunks[1])
+	}
+	return fmt.Sprintf("JSONTo%s", typeChunks[0])
+}
+
 func fromJSON(f fieldValues) string {
 	if f.IsRepeated {
 		singularType := f.Type[0 : len(f.Type)-2] // Remove []
-		if strings.HasSuffix(singularType, "Model") {
-			singularType = singularType[0 : len(singularType)-5] // Remove "Model"
-		}
 
 		switch singularType {
 		case "string", "number", "boolean":
 			return fmt.Sprintf("m.%s.map((v) => {return %s(v)})", f.Name, upperCaseFirst(singularType))
 		}
 
-		return fmt.Sprintf("m.%s.map(JSONTo%s)", f.Name, singularType)
+		if strings.HasSuffix(singularType, "Model") {
+			singularType = singularType[0 : len(singularType)-5]
+		}
+
+		return fmt.Sprintf("m.%s.map(%s)", f.Name, jsonToType(singularType))
 	}
 
 	if strings.HasSuffix(f.Type, "Model") {
-		return fmt.Sprintf("JSONTo%s(m.%s)", upperCaseFirst(f.Name), f.Name)
+		return fmt.Sprintf("%s(m.%s)", jsonToType(f.Type[0:len(f.Type)-5]), f.Name)
 	}
 
 	return "m." + f.Name
@@ -285,7 +297,12 @@ func fromJSON(f fieldValues) string {
 
 func toJSON(f fieldValues) string {
 	if f.IsRepeated {
-
+		singularType := f.Type[0 : len(f.Type)-2] // Remove []
+		switch singularType {
+		case "string", "number", "boolean":
+			return fmt.Sprintf("m.%s.map((v) => {return %s(v)})", camelCase(f.Name), upperCaseFirst(singularType))
+		}
+		return fmt.Sprintf("m.%s.map(%sToJSON)", camelCase(f.Name), singularType)
 	}
 	if strings.HasSuffix(f.Type, "Model") {
 		return fmt.Sprintf("%sToJSON(m.%s)", f.Type, camelCase(f.Name))

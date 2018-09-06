@@ -24,13 +24,13 @@ func samePackage(a *descriptor.FileDescriptorProto, b *descriptor.FileDescriptor
 	return true
 }
 
-func (d *dependencyResolver) Set(packageName string, messageName string, fileDescriptor *descriptor.FileDescriptorProto) {
+func (d *dependencyResolver) Set(fd *descriptor.FileDescriptorProto, messageName string) {
 	if d.v == nil {
 		d.v = make(map[string]*descriptor.FileDescriptorProto)
 	}
-	typeName := fmt.Sprintf(".%s.%s", packageName, messageName)
-	log.Printf("-> typeName: %v (%v)", typeName, fileDescriptor.GetName())
-	d.v[typeName] = fileDescriptor
+	typeName := fullTypeName(fd, messageName)
+	//log.Printf("-> typeName: %v (%v)", typeName, fd.GetName())
+	d.v[typeName] = fd
 }
 
 func (d *dependencyResolver) Resolve(typeName string) (*descriptor.FileDescriptorProto, error) {
@@ -39,6 +39,23 @@ func (d *dependencyResolver) Resolve(typeName string) (*descriptor.FileDescripto
 		return nil, errors.New("no such type")
 	}
 	return fp, nil
+}
+
+func (d *dependencyResolver) TypeName(fd *descriptor.FileDescriptorProto, typeName string) string {
+	orig, err := d.Resolve(fullTypeName(fd, typeName))
+	if err == nil {
+		if !samePackage(fd, orig) {
+			return importName(orig) + "." + typeName
+		}
+	}
+	return typeName
+}
+
+func fullTypeName(fd *descriptor.FileDescriptorProto, typeName string) string {
+	if strings.HasSuffix(typeName, "[]") {
+		typeName = typeName[0 : len(typeName)-2]
+	}
+	return fmt.Sprintf(".%s.%s", fd.GetPackage(), typeName)
 }
 
 func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, error) {
@@ -57,9 +74,6 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 	for i := range protoFiles {
 		file := protoFiles[i]
 
-		log.Printf("file.package: %#v", file.GetPackage())
-		log.Printf("file.name: %#v", file.GetName())
-
 		pfile := &protoFile{
 			Imports:  map[string]*importValues{},
 			Messages: []*messageValues{},
@@ -69,7 +83,7 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 
 		// Add enum
 		for _, enum := range file.GetEnumType() {
-			resolver.Set(file.GetPackage(), enum.GetName(), file)
+			resolver.Set(file, enum.GetName())
 
 			v := &enumValues{
 				Name:   enum.GetName(),
@@ -88,8 +102,9 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 
 		// Add messages
 		for _, message := range file.GetMessageType() {
-			resolver.Set(file.GetPackage(), message.GetName(), file)
-			log.Printf("message.name: .%s.%s", file.GetPackage(), message.GetName())
+			resolver.Set(file, message.GetName())
+			resolver.Set(file, message.GetName()+"Model")
+			resolver.Set(file, message.GetName()+"JSON")
 
 			v := &messageValues{
 				Name:     message.GetName(),
@@ -99,12 +114,11 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 			}
 
 			for _, field := range message.GetField() {
-				log.Printf("field.type: %v", field.GetTypeName())
+				//log.Printf("field.type: %v", field.GetTypeName())
 
 				fp, err := resolver.Resolve(field.GetTypeName())
 				if err == nil {
 					if !samePackage(fp, file) {
-						log.Printf("resolve: %v -> %v", importName(fp), importPath(fp.GetName()))
 						pfile.Imports[fp.GetName()] = &importValues{
 							Name: importName(fp),
 							Path: importPath(fp.GetName()),
@@ -113,11 +127,13 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 				}
 
 				tsType, jsonType := protoToTSType(field)
+				//log.Printf("tsType: %v, fullTsType: %v", tsType, resolver.TypeName(file, tsType))
+				//log.Printf("jsonType: %v, fullJSONType: %v", jsonType, resolver.TypeName(file, jsonType))
 
 				v.Fields = append(v.Fields, &fieldValues{
 					Name:       field.GetName(),
-					Type:       tsType,
-					JSONType:   jsonType,
+					Type:       resolver.TypeName(file, tsType),
+					JSONType:   resolver.TypeName(file, jsonType),
 					IsRepeated: isRepeated(field),
 				})
 			}
@@ -127,15 +143,15 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 
 		// Add services
 		for _, service := range file.GetService() {
-			resolver.Set(file.GetPackage(), service.GetName(), file)
+			resolver.Set(file, service.GetName())
 
 			v := &serviceValues{
 				Package: file.GetPackage(),
 				Name:    service.GetName(),
 				Methods: []*serviceMethodValues{},
 			}
+
 			for _, method := range service.GetMethod() {
-				log.Printf("input-type: %v", method.GetInputType())
 				{
 					fp, err := resolver.Resolve(method.GetInputType())
 					if err == nil {
@@ -148,7 +164,6 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 					}
 				}
 
-				log.Printf("output-type: %v", method.GetOutputType())
 				{
 					fp, err := resolver.Resolve(method.GetOutputType())
 					if err == nil {
@@ -163,8 +178,8 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 
 				v.Methods = append(v.Methods, &serviceMethodValues{
 					Name:       method.GetName(),
-					InputType:  method.GetInputType(),
-					OutputType: method.GetOutputType(),
+					InputType:  resolver.TypeName(file, removePkg(method.GetInputType())),
+					OutputType: resolver.TypeName(file, removePkg(method.GetOutputType())),
 				})
 			}
 
