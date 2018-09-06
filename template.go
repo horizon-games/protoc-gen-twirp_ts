@@ -18,7 +18,7 @@ type importValues struct {
 }
 
 const importTemplate = `` +
-	`import * as {{.Name}} from './{{.Path -}}'
+	`{{if ne .Name "timestamp"}}import * as {{.Name}} from './{{.Path -}}'{{end}}
 `
 
 func (iv *importValues) Compile() (string, error) {

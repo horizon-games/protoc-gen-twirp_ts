@@ -121,7 +121,7 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 					if !samePackage(fp, file) {
 						pfile.Imports[fp.GetName()] = &importValues{
 							Name: importName(fp),
-							Path: importPath(fp.GetName()),
+							Path: importPath(file, fp.GetName()),
 						}
 					}
 				}
@@ -158,7 +158,7 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 						if !samePackage(fp, file) {
 							pfile.Imports[fp.GetName()] = &importValues{
 								Name: importName(fp),
-								Path: importPath(fp.GetName()),
+								Path: importPath(file, fp.GetName()),
 							}
 						}
 					}
@@ -170,7 +170,7 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 						if !samePackage(fp, file) {
 							pfile.Imports[fp.GetName()] = &importValues{
 								Name: importName(fp),
-								Path: importPath(fp.GetName()),
+								Path: importPath(file, fp.GetName()),
 							}
 						}
 					}
@@ -193,7 +193,7 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 		}
 
 		fileName := tsFileName(file.GetName())
-		log.Printf("fileName: %v", fileName)
+		log.Printf("wrote: %v", fileName)
 
 		res.File = append(res.File, &plugin.CodeGeneratorResponse_File{
 			Name:    &fileName,
@@ -278,19 +278,25 @@ func camelCase(s string) string {
 }
 
 func importName(fp *descriptor.FileDescriptorProto) string {
-	name := fp.GetName()
+	return tsImportName(fp.GetName())
+}
+
+func tsImportName(name string) string {
 	base := path.Base(name)
 	return base[0 : len(base)-len(path.Ext(base))]
 }
 
-func importPath(name string) string {
+func tsImportPath(name string) string {
 	base := path.Base(name)
-
 	name = name[0 : len(name)-len(path.Ext(base))]
-
 	return name
 }
 
+func importPath(fd *descriptor.FileDescriptorProto, name string) string {
+	// TODO: how to resolve relative paths?
+	return tsImportPath(name)
+}
+
 func tsFileName(name string) string {
-	return importPath(name) + ".ts"
+	return tsImportPath(name) + ".ts"
 }
