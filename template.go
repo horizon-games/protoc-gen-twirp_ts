@@ -17,8 +17,10 @@ type importValues struct {
 	Path string
 }
 
-const importTemplate = `` +
-	`{{if ne .Name "timestamp"}}import * as {{.Name}} from './{{.Path -}}'{{end}}
+const importTemplate = `
+{{- if ne .Name "timestamp" -}}
+import * as {{.Name}} from './{{.Path}}'
+{{- end -}}
 `
 
 func (iv *importValues) Compile() (string, error) {
@@ -36,11 +38,11 @@ type enumValues struct {
 }
 
 const enumTemplate = `
-{{$enumName := .Name -}}
+{{- $enumName := .Name}}
 export const {{$enumName}} = {
-{{range .Values}}
-	{{.Name}}: {{.Value}},
-{{- end}}
+  {{- range .Values}}
+  {{.Name}}: {{.Value}}
+  {{- end}}
 }
 `
 
@@ -56,15 +58,15 @@ type serviceValues struct {
 
 var serviceTemplate = `
 export interface {{.Name}}Interface {
-{{range .Methods}}
+  {{- range .Methods}}
   {{.Name | methodName}}: ({{.InputType | argumentName}}: {{.InputType}}) => Promise<{{.OutputType | modelName}}>
-{{end}}
+  {{- end}}
 }
 
 export class {{.Name}} implements {{.Name}}Interface {
-  private hostname: string;
-  private fetch: Fetch;
-  private path = "/twirp/{{.Package}}.{{.Name}}/";
+  private hostname: string
+  private fetch: Fetch
+  private path = '/twirp/{{.Package}}.{{.Name}}/'
 
   constructor(hostname: string, fetch: Fetch) {
     this.hostname = hostname
@@ -72,15 +74,15 @@ export class {{.Name}} implements {{.Name}}Interface {
   }
 
   {{range .Methods}}
-	{{.Name | methodName}}({{.InputType | argumentName}}: {{.InputType}}): Promise<{{.OutputType | modelName}}> {
-		const url = this.hostname + this.path + '{{.Name}}';
-		return this.fetch(createTwirpRequest(url, {{.InputType | modelName | typeToJSON}}({{.InputType | argumentName}}))).then((res) => {
-			if (!res.ok) {
-				return throwTwirpError(res);
-			}
-			return res.json().then({{.OutputType | jsonToType}})
-		})
-	}
+  {{.Name | methodName}}({{.InputType | argumentName}}: {{.InputType}}): Promise<{{.OutputType | modelName}}> {
+    const url = this.hostname + this.path + '{{.Name}}'
+    return this.fetch(createTwirpRequest(url, {{.InputType | modelName | typeToJSON}}({{.InputType | argumentName}}))).then((res) => {
+      if (!res.ok) {
+        return throwTwirpError(res)
+      }
+      return res.json().then({{.OutputType | jsonToType}})
+    })
+  }
   {{end}}
 }
 `
@@ -112,36 +114,36 @@ type messageValues struct {
 
 var messageTemplate = `
 export interface {{.Type}} {
-  {{range .Fields -}}
-    {{.Name | camelCase}}: {{.Type}};
-  {{end}}
+  {{- range .Fields}}
+  {{.Name | camelCase}}: {{.Type}}
+  {{- end}}
 }
 
 export interface {{.JSONType}} {
-  {{range .Fields -}}
-    {{.Name | jsonName}}: {{.Type | jsonType}};
-  {{end}}
+  {{- range .Fields}}
+  {{.Name | jsonName}}: {{.Type | jsonType}}
+  {{- end}}
 }
 
 export class {{.Name}} implements {{.Type}} {
-  {{range .Fields -}}
-    {{.Name | camelCase}}: {{.Type}};
-  {{end}}
+  {{- range .Fields}}
+  {{.Name | camelCase}}: {{.Type}}
+  {{- end}}
 }
 
 export const {{.Type}}ToJSON = (m: {{.Type}}): {{.JSONType}} => {
   return {
-    {{range .Fields -}}
-      {{.Name}}: {{. | toJSON -}},
-    {{end -}}
+    {{- range .Fields}}
+    {{.Name}}: {{. | toJSON}}
+    {{- end}}
   }
 }
 
 export const JSONTo{{.Name}} = (m: {{.JSONType}}): {{.Type}} => {
   return <{{.Name}}>{
-    {{range .Fields -}}
-      {{.Name | camelCase}}: {{. | fromJSON -}},
-    {{end -}}
+    {{- range .Fields}}
+    {{.Name | camelCase}}: {{. | fromJSON -}}
+    {{- end}}
   }
 }
 `
@@ -158,40 +160,43 @@ type protoFile struct {
 }
 
 var protoTemplate = `
-{{if .Imports}}
-{{range .Imports}}
-{{. | compile -}}
-{{end}}
-{{end}}
+{{- if .Imports}}
+{{- range .Imports}}
+{{- . | compile}}
+{{- end}}
+{{- end}}
 
-{{if .Services -}}
+{{- if .Services}}
+
 import {
-	createTwirpRequest,
-	Fetch,
-	throwTwirpError
-} from './twirp';
-{{end -}}
+  createTwirpRequest,
+  Fetch,
+  throwTwirpError
+} from './twirp'
+{{- end}}
 
-{{- if .Enums -}}
+{{- if .Enums}}
+
 // Enums
-{{- range .Enums -}}
-{{. | compile -}}
-{{end}}
-{{end -}}
+{{- range .Enums}}
+{{- . | compile}}
+{{- end}}
+{{- end}}
 
-{{- if .Messages -}}
+{{- if .Messages}}
 // Messages
-{{- range .Messages -}}
-{{. | compile -}}
-{{end}}
-{{end -}}
+{{- range .Messages}}
+{{- . | compile}}
+{{- end}}
+{{- end}}
 
-{{if .Services -}}
+{{- if .Services}}
+
 // Services
-{{range .Services -}}
-{{. | compile -}}
-{{end}}
-{{end -}}
+{{- range .Services}}
+{{- . | compile}}
+{{- end}}
+{{- end}}
 `
 
 func compile(c Compilable) string {
