@@ -75,9 +75,9 @@ export class {{.Name}} implements {{.Name}}Interface {
   }
 
   {{range .Methods}}
-  {{.Name | methodName}}({{.InputType | argumentName}}: {{.InputType}}): Promise<{{.OutputType | modelName}}> {
+  {{.Name | methodName}}({{.InputType | argumentName}}: {{.InputType}}, headers = {}): Promise<{{.OutputType | modelName}}> {
     const url = this.hostname + this.path + '{{.Name}}'
-    return this.fetch(url, createTwirpRequest({{.InputType | modelName | typeToJSON}}({{.InputType | argumentName}}))).then((res) => {
+    return this.fetch(url, createTwirpRequest({{.InputType | modelName | typeToJSON}}({{.InputType | argumentName}}), headers)).then((res) => {
       if (!res.ok) {
         return throwTwirpError(res)
       }
