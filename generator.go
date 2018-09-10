@@ -103,19 +103,19 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 		// Add messages
 		for _, message := range file.GetMessageType() {
 			resolver.Set(file, message.GetName())
-			resolver.Set(file, message.GetName()+"Model")
-			resolver.Set(file, message.GetName()+"JSON")
+			//resolver.Set(file, message.GetName()+"Model")
+			//resolver.Set(file, message.GetName()+"JSON")
 
 			v := &messageValues{
-				Name:     message.GetName(),
-				Type:     message.GetName() + "Model",
-				JSONType: message.GetName() + "JSON",
-				Fields:   []*fieldValues{},
+				Name:      message.GetName(),
+				Interface: "I" + message.GetName(),
+				//Type:     message.GetName() + "Model",
+				//JSONType: message.GetName() + "JSON",
+				Fields: []*fieldValues{},
 			}
 
 			for _, field := range message.GetField() {
 				//log.Printf("field.type: %v", field.GetTypeName())
-
 				fp, err := resolver.Resolve(field.GetTypeName())
 				if err == nil {
 					if !samePackage(fp, file) {
@@ -131,7 +131,9 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 				//log.Printf("jsonType: %v, fullJSONType: %v", jsonType, resolver.TypeName(file, jsonType))
 
 				v.Fields = append(v.Fields, &fieldValues{
-					Name:       field.GetName(),
+					Name:  field.GetName(),
+					Field: upperCaseFirst(camelCase(field.GetName())),
+
 					Type:       resolver.TypeName(file, tsType),
 					JSONType:   resolver.TypeName(file, jsonType),
 					IsRepeated: isRepeated(field),
@@ -146,9 +148,10 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 			resolver.Set(file, service.GetName())
 
 			v := &serviceValues{
-				Package: file.GetPackage(),
-				Name:    service.GetName(),
-				Methods: []*serviceMethodValues{},
+				Package:   file.GetPackage(),
+				Name:      service.GetName(),
+				Interface: "I" + service.GetName(),
+				Methods:   []*serviceMethodValues{},
 			}
 
 			for _, method := range service.GetMethod() {
@@ -237,8 +240,8 @@ func protoToTSType(f *descriptor.FieldDescriptorProto) (string, string) {
 			tsType = "Date"
 			jsonType = "string"
 		} else {
-			tsType = removePkg(name) + "Model"
-			jsonType = removePkg(name) + "JSON"
+			tsType = "I" + removePkg(name)
+			jsonType = removePkg(name)
 		}
 	}
 
@@ -260,7 +263,7 @@ func removePkg(s string) string {
 }
 
 func upperCaseFirst(s string) string {
-	return strings.ToUpper(s[0:1]) + strings.ToLower(s[1:])
+	return strings.ToUpper(s[0:1]) + s[1:]
 }
 
 func camelCase(s string) string {
@@ -268,9 +271,9 @@ func camelCase(s string) string {
 
 	for i, p := range parts {
 		if i == 0 {
-			parts[i] = strings.ToLower(p)
+			parts[i] = p
 		} else {
-			parts[i] = strings.ToUpper(p[0:1]) + strings.ToLower(p[1:])
+			parts[i] = strings.ToUpper(p[0:1]) + p[1:]
 		}
 	}
 

@@ -52,19 +52,20 @@ func (ev *enumValues) Compile() (string, error) {
 }
 
 type serviceValues struct {
-	Name    string
-	Package string
-	Methods []*serviceMethodValues
+	Package   string
+	Name      string
+	Interface string
+	Methods   []*serviceMethodValues
 }
 
 var serviceTemplate = `
-export interface {{.Name}}Interface {
+export interface {{.Interface}} {
   {{- range .Methods}}
-  {{.Name | methodName}}: ({{.InputType | argumentName}}: {{.InputType}}) => Promise<{{.OutputType | modelName}}>
+  {{.Name}}: (data: {{.InputType}}) => Promise<{{.OutputType}}>
   {{- end}}
 }
 
-export class {{.Name}} implements {{.Name}}Interface {
+export class {{.Name}} implements {{.Interface}} {
   private hostname: string
   private fetch: Fetch
   private path = '/twirp/{{.Package}}.{{.Name}}/'
@@ -74,14 +75,20 @@ export class {{.Name}} implements {{.Name}}Interface {
     this.fetch = fetch
   }
 
+	private url(name string): string {
+		this.hostname + this.path + name
+	}
+
   {{range .Methods}}
-  {{.Name | methodName}}({{.InputType | argumentName}}: {{.InputType}}, headers = {}): Promise<{{.OutputType | modelName}}> {
-    const url = this.hostname + this.path + '{{.Name}}'
-    return this.fetch(url, createTwirpRequest({{.InputType | modelName | typeToJSON}}({{.InputType | argumentName}}), headers)).then((res) => {
+  {{.Name}}(params: {{.InputType}}, headers = {}): Promise<{{.OutputType}}> {
+    return this.fetch(
+			this.url('{{.Name}}'),
+			createTwirpRequest(params, headers)
+		).then((res) => {
       if (!res.ok) {
         return throwTwirpError(res)
       }
-      return res.json().then({{.OutputType | jsonToType}})
+      return res.json().then((m) => { return new {{.OutputType}}(m)})
     })
   }
   {{end}}
@@ -93,7 +100,8 @@ func (sv *serviceValues) Compile() (string, error) {
 }
 
 type serviceMethodValues struct {
-	Name       string
+	Name string
+
 	Path       string
 	InputType  string
 	OutputType string
@@ -101,53 +109,59 @@ type serviceMethodValues struct {
 
 type fieldValues struct {
 	Name       string
+	Field      string
 	Type       string
 	JSONType   string
 	IsRepeated bool
 }
 
 type messageValues struct {
-	Name     string
-	Type     string
-	JSONType string
-	Fields   []*fieldValues
+	Name      string
+	Interface string
+
+	//Type     string
+	//JSONType string
+	Fields []*fieldValues
 }
 
 var messageTemplate = `
-export interface {{.Type}} {
+export interface {{.Interface}} {
   {{- range .Fields}}
-  {{.Name | camelCase}}: {{.Type}}
+  {{.Field }}?: {{.Type}}
   {{- end}}
+
+	toJSON(): string
 }
 
-export interface {{.JSONType}} {
-  {{- range .Fields}}
-  {{.Name | jsonName}}: {{.Type | jsonType}}
-  {{- end}}
-}
+export class {{.Name}} implements {{.Interface}} {
+	{{range .Fields}}
+		private _{{.Name}}: {{.Type}}
+	{{end}}
 
-export class {{.Name}} implements {{.Type}} {
-  {{- range .Fields}}
-  {{.Name | camelCase}}: {{.Type}}
-  {{- end}}
-}
+	constructor(m: object) {
+		if (!m) {return}
+		{{- range $i, $v := .Fields}}
+		this.{{$v.Field}} = {{ $v | objectToField }}
+		{{- end}}
+	}
 
-export const {{.Type}}ToJSON = (m: {{.Type}}): {{.JSONType}} => {
-  return {
-    {{- range $i, $v := .Fields}}
-    {{- if $i}},{{end}}
-    {{$v.Name}}: {{. | toJSON}}
-    {{- end}}
-  }
-}
+	{{range .Fields}}
+		public get {{.Field}}(): {{.Type}} {
+			return this._{{.Name}}
+		}
+		public set {{.Field}}(value: {{.Type}}) {
+			this._{{.Name}} = value
+		}
+	{{end}}
 
-export const JSONTo{{.Name}} = (m: {{.JSONType}}): {{.Type}} => {
-  return <{{.Name}}>{
-    {{- range $i, $v := .Fields}}
-    {{- if $i}},{{end}}
-    {{.Name | camelCase}}: {{. | fromJSON -}}
-    {{- end}}
-  }
+	toJSON(): string {
+		return JSON.stringify({
+		{{range $i, $v := .Fields}}
+			{{- if $i}},{{end}}
+			'{{$v.Name}}': this.{{$v.Field}}
+		{{- end}}
+		})
+	}
 }
 `
 
@@ -224,37 +238,24 @@ func argumentName(method string) string {
 	return "_" + methodName(removePkg(method))
 }
 
-func modelName(name string) string {
-	return name + "Model"
-}
-
 func jsonName(name string) string {
-	return name
-}
-
-func jsonType(name string) string {
-	if strings.HasSuffix(name, "Model[]") {
-		return name[0:len(name)-7] + "JSON[]"
-	}
-	if strings.HasSuffix(name, "Model") {
-		return name[0:len(name)-5] + "JSON"
-	}
 	return name
 }
 
 func compileAndExecute(tpl string, data interface{}) (string, error) {
 	funcMap := template.FuncMap{
-		"camelCase":    camelCase,
-		"compile":      compile,
-		"methodName":   methodName,
-		"modelName":    modelName,
-		"jsonName":     jsonName,
-		"jsonType":     jsonType,
-		"fromJSON":     fromJSON,
-		"toJSON":       toJSON,
-		"jsonToType":   jsonToType,
-		"typeToJSON":   typeToJSON,
-		"argumentName": argumentName,
+		"compile":       compile,
+		"objectToField": objectToField,
+		//"camelCase":      camelCase,
+		//"methodName":     methodName,
+		//"jsonName":       jsonName,
+		//"fromJSON":       fromJSON,
+		//"toJSON":         toJSON,
+		//"upperCaseFirst": upperCaseFirst,
+		//"jsonToType":     jsonToType,
+		//"newType":        newType,
+		//"typeToJSON":     typeToJSON,
+		//"argumentName":   argumentName,
 	}
 
 	t, err := template.New("").Funcs(funcMap).Parse(tpl)
@@ -274,6 +275,14 @@ func typeToJSON(s string) string {
 	return s + "ToJSON"
 }
 
+func newType(typeName string) string {
+	typeChunks := strings.SplitN(typeName, ".", 2)
+	if len(typeChunks) > 1 {
+		return fmt.Sprintf("%s.New%s", typeChunks[0], typeChunks[1])
+	}
+	return fmt.Sprintf("New%s", typeChunks[0])
+}
+
 func jsonToType(typeName string) string {
 	typeChunks := strings.SplitN(typeName, ".", 2)
 	if len(typeChunks) > 1 {
@@ -282,6 +291,23 @@ func jsonToType(typeName string) string {
 	return fmt.Sprintf("JSONTo%s", typeChunks[0])
 }
 
+func objectToField(fv fieldValues) string {
+	if fv.IsRepeated {
+		singularType := fv.Type[0 : len(fv.Type)-2] // Remove []
+		switch singularType {
+		case "string", "number", "boolean":
+			return fmt.Sprintf("(m['%s'] || []).map((v) => { return %s(v)})", fv.Name, upperCaseFirst(singularType))
+		}
+		return fmt.Sprintf("(m['%s'] || []).map((v) => { return new %s(v)})", fv.Name, upperCaseFirst(singularType))
+	}
+	switch fv.Type {
+	case "string", "number", "boolean":
+		return fmt.Sprintf("m['%s']", fv.Name)
+	}
+	return fmt.Sprintf("new %s(m['%s'])", fv.Type[1:], fv.Name)
+}
+
+/*
 func fromJSON(f fieldValues) string {
 	if f.IsRepeated {
 		singularType := f.Type[0 : len(f.Type)-2] // Remove []
@@ -319,3 +345,4 @@ func toJSON(f fieldValues) string {
 	}
 	return "m." + camelCase(f.Name)
 }
+*/
