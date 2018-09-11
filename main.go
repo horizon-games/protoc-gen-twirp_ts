@@ -1,10 +1,35 @@
 package main
 
 import (
-	"github.com/golang/protobuf/proto"
 	"log"
 	"os"
+
+	"errors"
+	"io"
+	"io/ioutil"
+
+	"github.com/golang/protobuf/proto"
+	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
 )
+
+func read(rdr io.Reader) (*plugin.CodeGeneratorRequest, error) {
+	buf, err := ioutil.ReadAll(rdr)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &plugin.CodeGeneratorRequest{}
+
+	if err := proto.Unmarshal(buf, req); err != nil {
+		return nil, err
+	}
+
+	if len(req.FileToGenerate) < 1 {
+		return nil, errors.New(`no files to generate`)
+	}
+
+	return req, err
+}
 
 func main() {
 	req, err := read(os.Stdin)

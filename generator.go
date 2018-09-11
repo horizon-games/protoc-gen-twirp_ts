@@ -1,18 +1,14 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"github.com/golang/protobuf/protoc-gen-go/descriptor"
-	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
 	"log"
 	"path"
 	"strings"
-)
 
-type dependencyResolver struct {
-	v map[string]*descriptor.FileDescriptorProto
-}
+	"github.com/golang/protobuf/protoc-gen-go/descriptor"
+	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
+)
 
 func samePackage(a *descriptor.FileDescriptorProto, b *descriptor.FileDescriptorProto) bool {
 	if a.GetPackage() != b.GetPackage() {
@@ -24,37 +20,7 @@ func samePackage(a *descriptor.FileDescriptorProto, b *descriptor.FileDescriptor
 	return true
 }
 
-func (d *dependencyResolver) Set(fd *descriptor.FileDescriptorProto, messageName string) {
-	if d.v == nil {
-		d.v = make(map[string]*descriptor.FileDescriptorProto)
-	}
-	typeName := fullTypeName(fd, messageName)
-	//log.Printf("-> typeName: %v (%v)", typeName, fd.GetName())
-	d.v[typeName] = fd
-}
-
-func (d *dependencyResolver) Resolve(typeName string) (*descriptor.FileDescriptorProto, error) {
-	fp := d.v[typeName]
-	if fp == nil {
-		return nil, errors.New("no such type")
-	}
-	return fp, nil
-}
-
-func (d *dependencyResolver) TypeName(fd *descriptor.FileDescriptorProto, typeName string) string {
-	orig, err := d.Resolve(fullTypeName(fd, typeName))
-	if err == nil {
-		if !samePackage(fd, orig) {
-			return importName(orig) + "." + typeName
-		}
-	}
-	return typeName
-}
-
 func fullTypeName(fd *descriptor.FileDescriptorProto, typeName string) string {
-	if strings.HasSuffix(typeName, "[]") {
-		typeName = typeName[0 : len(typeName)-2]
-	}
 	return fmt.Sprintf(".%s.%s", fd.GetPackage(), typeName)
 }
 
@@ -103,14 +69,12 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 		// Add messages
 		for _, message := range file.GetMessageType() {
 			resolver.Set(file, message.GetName())
-			//resolver.Set(file, message.GetName()+"Model")
-			//resolver.Set(file, message.GetName()+"JSON")
+			resolver.Set(file, typeToInterface(message.GetName()))
 
 			v := &messageValues{
 				Name:      message.GetName(),
-				Interface: "I" + message.GetName(),
-				//Type:     message.GetName() + "Model",
-				//JSONType: message.GetName() + "JSON",
+				Interface: typeToInterface(message.GetName()),
+
 				Fields: []*fieldValues{},
 			}
 
@@ -126,16 +90,11 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 					}
 				}
 
-				tsType, jsonType := protoToTSType(field)
-				//log.Printf("tsType: %v, fullTsType: %v", tsType, resolver.TypeName(file, tsType))
-				//log.Printf("jsonType: %v, fullJSONType: %v", jsonType, resolver.TypeName(file, jsonType))
-
 				v.Fields = append(v.Fields, &fieldValues{
 					Name:  field.GetName(),
-					Field: upperCaseFirst(camelCase(field.GetName())),
+					Field: camelCase(field.GetName()),
 
-					Type:       resolver.TypeName(file, tsType),
-					JSONType:   resolver.TypeName(file, jsonType),
+					Type:       resolver.TypeName(file, singularFieldType(field)),
 					IsRepeated: isRepeated(field),
 				})
 			}
@@ -150,7 +109,7 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 			v := &serviceValues{
 				Package:   file.GetPackage(),
 				Name:      service.GetName(),
-				Interface: "I" + service.GetName(),
+				Interface: typeToInterface(service.GetName()),
 				Methods:   []*serviceMethodValues{},
 			}
 
@@ -207,52 +166,6 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 	return res, nil
 }
 
-// generates the (Type, JSONType) tuple for a ModelField so marshal/unmarshal functions
-// will work when converting between TS interfaces and protobuf JSON.
-func protoToTSType(f *descriptor.FieldDescriptorProto) (string, string) {
-	// From https://github.com/larrymyers/protoc-gen-twirp_typescript/blob/master/generator/client.go
-	tsType := "string"
-	jsonType := "string"
-
-	switch f.GetType() {
-	case descriptor.FieldDescriptorProto_TYPE_DOUBLE,
-		descriptor.FieldDescriptorProto_TYPE_FIXED32,
-		descriptor.FieldDescriptorProto_TYPE_FIXED64,
-		descriptor.FieldDescriptorProto_TYPE_INT32,
-		descriptor.FieldDescriptorProto_TYPE_INT64:
-		tsType = "number"
-		jsonType = "number"
-	case descriptor.FieldDescriptorProto_TYPE_STRING:
-		tsType = "string"
-		jsonType = "string"
-	case descriptor.FieldDescriptorProto_TYPE_BOOL:
-		tsType = "boolean"
-		jsonType = "boolean"
-	case descriptor.FieldDescriptorProto_TYPE_MESSAGE:
-		name := f.GetTypeName()
-
-		// Google WKT Timestamp is a special case here:
-		//
-		// Currently the value will just be left as jsonpb RFC 3339 string.
-		// JSON.stringify already handles serializing Date to its RFC 3339 format.
-		//
-		if name == ".google.protobuf.Timestamp" {
-			tsType = "Date"
-			jsonType = "string"
-		} else {
-			tsType = "I" + removePkg(name)
-			jsonType = removePkg(name)
-		}
-	}
-
-	if isRepeated(f) {
-		tsType = tsType + "[]"
-		jsonType = jsonType + "[]"
-	}
-
-	return tsType, jsonType
-}
-
 func isRepeated(field *descriptor.FieldDescriptorProto) bool {
 	return field.Label != nil && *field.Label == descriptor.FieldDescriptorProto_LABEL_REPEATED
 }
@@ -302,4 +215,45 @@ func importPath(fd *descriptor.FileDescriptorProto, name string) string {
 
 func tsFileName(name string) string {
 	return tsImportPath(name) + ".ts"
+}
+
+func singularFieldType(f *descriptor.FieldDescriptorProto) string {
+	switch f.GetType() {
+	case descriptor.FieldDescriptorProto_TYPE_DOUBLE,
+		descriptor.FieldDescriptorProto_TYPE_FIXED32,
+		descriptor.FieldDescriptorProto_TYPE_FIXED64,
+		descriptor.FieldDescriptorProto_TYPE_INT32,
+		descriptor.FieldDescriptorProto_TYPE_INT64:
+		return "number"
+	case descriptor.FieldDescriptorProto_TYPE_STRING:
+		return "string"
+	case descriptor.FieldDescriptorProto_TYPE_BOOL:
+		return "boolean"
+	case descriptor.FieldDescriptorProto_TYPE_MESSAGE:
+		name := f.GetTypeName()
+
+		// Google WKT Timestamp is a special case here:
+		//
+		// Currently the value will just be left as jsonpb RFC 3339 string.
+		// JSON.stringify already handles serializing Date to its RFC 3339 format.
+		//
+		if name == ".google.protobuf.Timestamp" {
+			return "Date"
+		}
+
+		return removePkg(name)
+	}
+
+	return "string"
+}
+
+func fieldType(f *fieldValues) string {
+	t := f.Type
+	if t == "Date" {
+		t = "string"
+	}
+	if f.IsRepeated {
+		return t + "[]"
+	}
+	return t
 }
