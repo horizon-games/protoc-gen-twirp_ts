@@ -67,10 +67,11 @@ export class {{.Name}} implements {{.Interface}} {
   {{- end}}
 
   constructor(m: {{.Interface}}) {
-    if (!m) {return}
-    {{- range $i, $v := .Fields}}
-    this.{{$v.Field}} = m.{{ $v.Field }}
-    {{- end}}
+    if (m) {
+      {{- range $i, $v := .Fields}}
+      this.{{$v.Field}} = m.{{ $v.Field }}
+      {{- end}}
+    }
   }
   {{range .Fields}}
   // {{.Field}} ({{.Name}})
@@ -83,7 +84,7 @@ export class {{.Name}} implements {{.Interface}} {
   {{end}}
   static fromJSON(m: object): {{.Name}} {
     return new {{.Name}}({
-    {{range $i, $v := .Fields}}
+    {{range $i, $v := .Fields -}}
       {{- if $i}},
       {{else}}  {{end}}{{$v.Field}}: {{$v | objectToField -}}
     {{- end}}
