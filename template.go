@@ -73,19 +73,19 @@ export class {{.Name}} implements {{.Interface}} {
     {{- end}}
   }
   {{range .Fields}}
-	// {{.Field}} ({{.Name}})
-	public get {{.Field}}(): {{. | fieldType}} {
-		return this._{{.Field}}
-	}
-	public set {{.Field}}(value: {{. | fieldType}}) {
-		this._{{.Field}} = value
-	}
+  // {{.Field}} ({{.Name}})
+  public get {{.Field}}(): {{. | fieldType}} {
+    return this._{{.Field}}
+  }
+  public set {{.Field}}(value: {{. | fieldType}}) {
+    this._{{.Field}} = value
+  }
   {{end}}
   static fromJSON(m: object): {{.Name}} {
     return new {{.Name}}({
     {{range $i, $v := .Fields}}
       {{- if $i}},
-			{{else}}  {{end}}{{$v.Field}}: {{$v | objectToField -}}
+      {{else}}  {{end}}{{$v.Field}}: {{$v | objectToField -}}
     {{- end}}
     })
   }
@@ -94,7 +94,7 @@ export class {{.Name}} implements {{.Interface}} {
     return {
     {{range $i, $v := .Fields}}
       {{- if $i}},
-			{{else}}  {{end}}'{{$v.Name}}': this.{{$v.Field -}}
+      {{else}}  {{end}}'{{$v.Name}}': this.{{$v.Field -}}
     {{- end}}
     }
   }
