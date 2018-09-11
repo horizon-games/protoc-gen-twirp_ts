@@ -68,18 +68,24 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 
 		// Add messages
 		for _, message := range file.GetMessageType() {
-			resolver.Set(file, message.GetName())
-			resolver.Set(file, typeToInterface(message.GetName()))
+			name := message.GetName()
+			tsInterface := typeToInterface(name)
+			jsonInterface := typeToJSONInterface(name)
+
+			resolver.Set(file, name)
+			resolver.Set(file, tsInterface)
+			resolver.Set(file, jsonInterface)
 
 			v := &messageValues{
-				Name:      message.GetName(),
-				Interface: typeToInterface(message.GetName()),
+				Name:          name,
+				Interface:     tsInterface,
+				JSONInterface: jsonInterface,
 
 				Fields: []*fieldValues{},
 			}
 
+			// Add message fields
 			for _, field := range message.GetField() {
-				//log.Printf("field.type: %v", field.GetTypeName())
 				fp, err := resolver.Resolve(field.GetTypeName())
 				if err == nil {
 					if !samePackage(fp, file) {

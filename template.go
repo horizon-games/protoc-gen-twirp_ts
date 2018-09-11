@@ -47,51 +47,60 @@ func (ev *enumValues) Compile() (string, error) {
 }
 
 type messageValues struct {
-	Name      string
-	Interface string
+	Name          string
+	Interface     string
+	JSONInterface string
 
 	Fields []*fieldValues
 }
 
 var messageTemplate = `
 export interface {{.Interface}} {
+  {{- if .Fields }}
   {{- range .Fields}}
   {{.Field }}?: {{. | fieldType}}
   {{- end}}
+  {{end}}
   toJSON?(): object
 }
 
-export class {{.Name}} implements {{.Interface}} {
-  {{range .Fields}}
-  private _{{.Field}}: {{. | fieldType}}
-  {{- end}}
+export interface {{.JSONInterface}} {
+  {{- range $i, $v := .Fields}}
+  {{$v.Name}}?: {{ $v | fieldType }}
+	{{- end}}
+}
 
-  constructor(m: {{.Interface}}) {
+export class {{.Name}} implements {{.Interface}} {
+  private _json: {{.JSONInterface}}
+
+  constructor(m?: {{.Interface}}) {
+    this._json = {}
     if (m) {
-      {{- range $i, $v := .Fields}}
-      this.{{$v.Field}} = m.{{ $v.Field }}
+      {{- range .Fields}}
+      this._json['{{.Name}}'] = m.{{.Field}}
       {{- end}}
     }
   }
   {{range .Fields}}
   // {{.Field}} ({{.Name}})
   public get {{.Field}}(): {{. | fieldType}} {
-    return this._{{.Field}}
+    return this._json.{{.Name}}
   }
   public set {{.Field}}(value: {{. | fieldType}}) {
-    this._{{.Field}} = value
+    this._json.{{.Name}} = value
   }
   {{end}}
-  static fromJSON(m: object): {{.Name}} {
+  static fromJSON(m: {{.JSONInterface}}): {{.Name}} {
     return new {{.Name}}({
     {{range $i, $v := .Fields -}}
       {{- if $i}},
-      {{else}}  {{end}}{{$v.Field}}: {{$v | objectToField -}}
+      {{else}}  {{end}}{{$v.Field}}: {{ $v | objectToField -}}
     {{- end}}
     })
   }
 
   public toJSON(): object {
+    // returns a copy of the internal JSON object
     return {
     {{range $i, $v := .Fields}}
       {{- if $i}},
@@ -261,7 +270,7 @@ func objectToField(fv fieldValues) string {
 
 	switch t {
 	case "string", "number", "boolean":
-		return fmt.Sprintf("%s(m['%s'])", upperCaseFirst(t), fv.Name)
+		return fmt.Sprintf("m['%s']", fv.Name)
 	}
 
 	return fmt.Sprintf("%s.fromJSON(m['%s'])", t, fv.Name)
@@ -269,6 +278,10 @@ func objectToField(fv fieldValues) string {
 
 func typeToInterface(typeName string) string {
 	return "I" + typeName
+}
+
+func typeToJSONInterface(typeName string) string {
+	return "I" + typeName + "JSON"
 }
 
 func methodName(method string) string {
