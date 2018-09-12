@@ -77,7 +77,7 @@ export interface {{.Interface}} {
 export interface {{.JSONInterface}} {
   {{- range $i, $v := .Fields}}
   {{$v.Name}}?: {{ $v | fieldType }}
-	{{- end}}
+  {{- end}}
 }
 
 export class {{.Name}} implements {{.Interface}} {
@@ -94,7 +94,7 @@ export class {{.Name}} implements {{.Interface}} {
   {{range .Fields}}
   // {{.Field}} ({{.Name}})
   public get {{.Field}}(): {{. | fieldType}} {
-    return this._json.{{.Name}}
+    return this._json.{{.Name}}!
   }
   public set {{.Field}}(value: {{. | fieldType}}) {
     this._json.{{.Name}} = value
@@ -110,12 +110,7 @@ export class {{.Name}} implements {{.Interface}} {
   }
 
   public toJSON(): object {
-    // returns a copy of the internal JSON object
-    return {
-    {{range $i, $v := .Fields}}
-      {{- if $i}},
-      {{else}}  {{end}}'{{$v.Name}}': this.{{$v.Field -}}
-    {{- end}}
+    return this._json
     }
   }
 }
@@ -273,17 +268,17 @@ func objectToField(fv fieldValues) string {
 	if fv.IsRepeated {
 		switch t {
 		case "string", "number", "boolean":
-			return fmt.Sprintf("(m['%s'] || []).map((v) => { return %s(v)})", fv.Name, upperCaseFirst(t))
+			return fmt.Sprintf("(m['%s']! || []).map((v) => { return %s(v)})", fv.Name, upperCaseFirst(t))
 		}
-		return fmt.Sprintf("(m['%s'] || []).map((v) => { return %s.fromJSON(v) })", fv.Name, t)
+		return fmt.Sprintf("(m['%s']! || []).map((v) => { return %s.fromJSON(v) })", fv.Name, t)
 	}
 
 	switch t {
 	case "string", "number", "boolean":
-		return fmt.Sprintf("m['%s']", fv.Name)
+		return fmt.Sprintf("m['%s']!", fv.Name)
 	}
 
-	return fmt.Sprintf("%s.fromJSON(m['%s'])", t, fv.Name)
+	return fmt.Sprintf("%s.fromJSON(m['%s']!)", t, fv.Name)
 }
 
 func typeToInterface(typeName string) string {
