@@ -86,10 +86,10 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 				NestedEnums: []*enumValues{},
 			}
 
-			for _, m := message.GetMessageType() {
+			if len(message.GetNestedType()) > 0 {
 				// TODO: add support for nested messages
 				// https://developers.google.com/protocol-buffers/docs/proto#nested
-				log.Fatal("nested messages are not supported yet")
+				log.Printf("warning: nested messages are not supported yet")
 			}
 
 			// Add nested enums
