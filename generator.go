@@ -81,7 +81,32 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 				Interface:     tsInterface,
 				JSONInterface: jsonInterface,
 
-				Fields: []*fieldValues{},
+				Fields:      []*fieldValues{},
+				NestedTypes: []*messageValues{},
+				NestedEnums: []*enumValues{},
+			}
+
+			for _, m := message.GetMessageType() {
+				// TODO: add support for nested messages
+				// https://developers.google.com/protocol-buffers/docs/proto#nested
+				log.Fatal("nested messages are not supported yet")
+			}
+
+			// Add nested enums
+			for _, enum := range message.GetEnumType() {
+				e := &enumValues{
+					Name:   fmt.Sprintf("%s_%s", message.GetName(), enum.GetName()),
+					Values: []*enumKeyVal{},
+				}
+
+				for _, value := range enum.GetValue() {
+					e.Values = append(e.Values, &enumKeyVal{
+						Name:  value.GetName(),
+						Value: value.GetNumber(),
+					})
+				}
+
+				v.NestedEnums = append(v.NestedEnums, e)
 			}
 
 			// Add message fields

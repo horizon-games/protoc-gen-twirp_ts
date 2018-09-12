@@ -37,7 +37,7 @@ const enumTemplate = `
 export const {{$enumName}} = {
   {{- range $i, $v := .Values}}
   {{- if $i}},{{end}}
-  {{$v.Name}}: {{$v.Value}}
+  '{{$v.Name}}': {{$v.Value}}
   {{- end}}
 }
 `
@@ -51,7 +51,9 @@ type messageValues struct {
 	Interface     string
 	JSONInterface string
 
-	Fields []*fieldValues
+	Fields      []*fieldValues
+	NestedTypes []*messageValues
+	NestedEnums []*enumValues
 }
 
 var messageTemplate = `
@@ -63,6 +65,14 @@ export interface {{.Interface}} {
   {{end}}
   toJSON?(): object
 }
+
+{{- if .NestedEnums}}
+{{range .NestedEnums}}
+{{. | compile}}
+{{end}}
+{{else}}
+
+{{ end -}}
 
 export interface {{.JSONInterface}} {
   {{- range $i, $v := .Fields}}
