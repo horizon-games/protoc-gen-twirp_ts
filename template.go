@@ -136,7 +136,7 @@ type serviceValues struct {
 var serviceTemplate = `
 export interface {{.Interface}} {
   {{- range .Methods}}
-  {{.Name | methodName}}: (data: {{.InputType}}) => Promise<{{.OutputType}}>
+  {{.Name | methodName}}: (data: {{.InputType}}, headers?: object) => Promise<{{.OutputType}}>
   {{- end}}
 }
 
