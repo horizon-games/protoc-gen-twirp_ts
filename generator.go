@@ -10,11 +10,46 @@ import (
 	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
 )
 
+type packageFile struct {
+	name string
+	pf   []*protoFile
+}
+
+func (f *packageFile) addProto(pf *protoFile) {
+	f.pf = append(f.pf, pf)
+}
+
+func (f *packageFile) protoFile() *protoFile {
+	pf := &protoFile{
+		Imports:  map[string]*importValues{},
+		Messages: []*messageValues{},
+		Services: []*serviceValues{},
+		Enums:    []*enumValues{},
+	}
+	for i := range f.pf {
+		for j := range f.pf[i].Imports {
+			pf.Imports[j] = f.pf[i].Imports[j]
+		}
+		pf.Messages = append(pf.Messages, f.pf[i].Messages...)
+		pf.Services = append(pf.Services, f.pf[i].Services...)
+		pf.Enums = append(pf.Enums, f.pf[i].Enums...)
+	}
+	return pf
+}
+
+var (
+	packageFiles = map[string]*packageFile{}
+)
+
+func addProtoToPackage(fileName string, pf *protoFile) {
+	if _, ok := packageFiles[fileName]; !ok {
+		packageFiles[fileName] = &packageFile{name: fileName}
+	}
+	packageFiles[fileName].addProto(pf)
+}
+
 func samePackage(a *descriptor.FileDescriptorProto, b *descriptor.FileDescriptorProto) bool {
 	if a.GetPackage() != b.GetPackage() {
-		return false
-	}
-	if a.GetName() != b.GetName() {
 		return false
 	}
 	return true
@@ -114,9 +149,9 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 				fp, err := resolver.Resolve(field.GetTypeName())
 				if err == nil {
 					if !samePackage(fp, file) {
-						pfile.Imports[fp.GetName()] = &importValues{
+						pfile.Imports[fp.GetPackage()] = &importValues{
 							Name: importName(fp),
-							Path: importPath(file, fp.GetName()),
+							Path: importPath(file, fp.GetPackage()),
 						}
 					}
 				}
@@ -149,9 +184,9 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 					fp, err := resolver.Resolve(method.GetInputType())
 					if err == nil {
 						if !samePackage(fp, file) {
-							pfile.Imports[fp.GetName()] = &importValues{
+							pfile.Imports[fp.GetPackage()] = &importValues{
 								Name: importName(fp),
-								Path: importPath(file, fp.GetName()),
+								Path: importPath(file, fp.GetPackage()),
 							}
 						}
 					}
@@ -161,9 +196,9 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 					fp, err := resolver.Resolve(method.GetOutputType())
 					if err == nil {
 						if !samePackage(fp, file) {
-							pfile.Imports[fp.GetName()] = &importValues{
+							pfile.Imports[fp.GetPackage()] = &importValues{
 								Name: importName(fp),
-								Path: importPath(file, fp.GetName()),
+								Path: importPath(file, fp.GetPackage()),
 							}
 						}
 					}
@@ -179,19 +214,28 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 			pfile.Services = append(pfile.Services, v)
 		}
 
+		// Add to appropriate file
+		addProtoToPackage(tsFileName(file), pfile)
+	}
+
+	for packageName := range packageFiles {
+		pf := packageFiles[packageName]
+
 		// Compile to typescript
-		s, err := pfile.Compile()
+		content, err := pf.protoFile().Compile()
 		if err != nil {
 			log.Fatal("could not compile template: ", err)
 		}
 
-		fileName := tsFileName(file.GetName())
-		log.Printf("wrote: %v", fileName)
-
+		// Add to file list
 		res.File = append(res.File, &plugin.CodeGeneratorResponse_File{
-			Name:    &fileName,
-			Content: &s,
+			Name:    &pf.name,
+			Content: &content,
 		})
+	}
+
+	for i := range res.File {
+		log.Printf("wrote: %v", *res.File[i].Name)
 	}
 
 	return res, nil
@@ -225,7 +269,7 @@ func camelCase(s string) string {
 }
 
 func importName(fp *descriptor.FileDescriptorProto) string {
-	return tsImportName(fp.GetName())
+	return tsImportName(fp.GetPackage())
 }
 
 func tsImportName(name string) string {
@@ -244,7 +288,8 @@ func importPath(fd *descriptor.FileDescriptorProto, name string) string {
 	return tsImportPath(name)
 }
 
-func tsFileName(name string) string {
+func tsFileName(fd *descriptor.FileDescriptorProto) string {
+	name := path.Join(path.Dir(fd.GetName()), fd.GetPackage())
 	return tsImportPath(name) + ".ts"
 }
 

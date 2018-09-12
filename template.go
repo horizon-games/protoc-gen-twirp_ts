@@ -198,8 +198,8 @@ var protoTemplate = `
 {{- if .Imports}}
 {{range .Imports -}}
 {{. | compile}}
-{{end -}}
 {{end}}
+{{end -}}
 
 {{- if .Services}}
 import {
@@ -207,7 +207,7 @@ import {
   Fetch,
   throwTwirpError
 } from './twirp'
-{{- end}}
+{{end}}
 
 {{- if .Enums}}
 {{range .Enums -}}

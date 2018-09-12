@@ -16,6 +16,7 @@ func (d *dependencyResolver) Set(fd *descriptor.FileDescriptorProto, messageName
 	}
 	typeName := fullTypeName(fd, messageName)
 	//log.Printf("-> typeName: %v (%v)", typeName, fd.GetName())
+
 	d.v[typeName] = fd
 }
 
@@ -23,6 +24,9 @@ func (d *dependencyResolver) Resolve(typeName string) (*descriptor.FileDescripto
 	fp := d.v[typeName]
 	if fp == nil {
 		return nil, errors.New("no such type")
+	}
+	if typeName == ".google.protobuf.Timestamp" {
+		return nil, errors.New("type is replaced by native Date")
 	}
 	return fp, nil
 }
