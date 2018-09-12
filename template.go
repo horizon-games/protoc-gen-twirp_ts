@@ -111,7 +111,6 @@ export class {{.Name}} implements {{.Interface}} {
 
   public toJSON(): object {
     return this._json
-    }
   }
 }
 `
