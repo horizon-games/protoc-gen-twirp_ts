@@ -299,7 +299,11 @@ func singularFieldType(f *descriptor.FieldDescriptorProto) string {
 		descriptor.FieldDescriptorProto_TYPE_FIXED32,
 		descriptor.FieldDescriptorProto_TYPE_FIXED64,
 		descriptor.FieldDescriptorProto_TYPE_INT32,
-		descriptor.FieldDescriptorProto_TYPE_INT64:
+		descriptor.FieldDescriptorProto_TYPE_INT64,
+		descriptor.FieldDescriptorProto_TYPE_UINT32,
+		descriptor.FieldDescriptorProto_TYPE_UINT64:
+		return "number"
+	case descriptor.FieldDescriptorProto_TYPE_ENUM:
 		return "number"
 	case descriptor.FieldDescriptorProto_TYPE_STRING:
 		return "string"
@@ -318,9 +322,11 @@ func singularFieldType(f *descriptor.FieldDescriptorProto) string {
 		}
 
 		return removePkg(name)
+	default:
+		//log.Printf("unknown type %q in field %q", f.GetType(), f.GetName())
+		return "string"
 	}
 
-	return "string"
 }
 
 func fieldType(f *fieldValues) string {
