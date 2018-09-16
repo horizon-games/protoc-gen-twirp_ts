@@ -289,7 +289,11 @@ func importPath(fd *descriptor.FileDescriptorProto, name string) string {
 }
 
 func tsFileName(fd *descriptor.FileDescriptorProto) string {
-	name := path.Join(path.Dir(fd.GetName()), fd.GetPackage())
+	packageName := fd.GetPackage()
+	if packageName == "" {
+		packageName = path.Base(fd.GetName())
+	}
+	name := path.Join(path.Dir(fd.GetName()), packageName)
 	return tsImportPath(name) + ".ts"
 }
 

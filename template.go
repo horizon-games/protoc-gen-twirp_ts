@@ -34,10 +34,10 @@ type enumValues struct {
 
 const enumTemplate = `
 {{$enumName := .Name}}
-export const {{$enumName}} = {
+export enum {{$enumName}} {
   {{- range $i, $v := .Values}}
   {{- if $i}},{{end}}
-  '{{$v.Name}}': {{$v.Value}}
+  {{$v.Name}} = {{$v.Value}}
   {{- end}}
 }
 `
