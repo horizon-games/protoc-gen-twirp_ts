@@ -94,13 +94,12 @@ export class {{.Name}} implements {{.Interface}} {
   {{range .Fields}}
   // {{.Field}} ({{.Name}})
   public get {{.Field}}(): {{. | fieldType}} {
-    {{if .IsEnum}}
+    {{if .IsEnum -}}
       return (<any>{{. | fieldType}})[this._json.{{.Name}}!]
-    {{else if .IsRepeated}}
+    {{- else if .IsRepeated -}}
       return this._json.{{.Name}} || []
-    {{else}}
-      return this._json.{{.Name}}!
-    {{end}}
+    {{- else -}}
+      return this._json.{{.Name}}!{{end}}
   }
   public set {{.Field}}(value: {{. | fieldType}}) {
     this._json.{{.Name}} = value
