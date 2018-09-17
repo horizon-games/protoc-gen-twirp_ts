@@ -156,11 +156,14 @@ func generate(req *plugin.CodeGeneratorRequest) (*plugin.CodeGeneratorResponse, 
 					}
 				}
 
+				typeName := resolver.TypeName(file, singularFieldType(message, field))
+
 				v.Fields = append(v.Fields, &fieldValues{
 					Name:  field.GetName(),
 					Field: camelCase(field.GetName()),
 
-					Type:       resolver.TypeName(file, singularFieldType(field)),
+					Type:       typeName,
+					IsEnum:     field.GetType() == descriptor.FieldDescriptorProto_TYPE_ENUM,
 					IsRepeated: isRepeated(field),
 				})
 			}
@@ -246,8 +249,9 @@ func isRepeated(field *descriptor.FieldDescriptorProto) bool {
 }
 
 func removePkg(s string) string {
-	p := strings.Split(s, ".")
-	return p[len(p)-1]
+	p := strings.SplitN(s, ".", 3)
+	c := strings.Split(p[len(p)-1], ".")
+	return strings.Join(c, "_")
 }
 
 func upperCaseFirst(s string) string {
@@ -297,7 +301,7 @@ func tsFileName(fd *descriptor.FileDescriptorProto) string {
 	return tsImportPath(name) + ".ts"
 }
 
-func singularFieldType(f *descriptor.FieldDescriptorProto) string {
+func singularFieldType(m *descriptor.DescriptorProto, f *descriptor.FieldDescriptorProto) string {
 	switch f.GetType() {
 	case descriptor.FieldDescriptorProto_TYPE_DOUBLE,
 		descriptor.FieldDescriptorProto_TYPE_FIXED32,
@@ -308,7 +312,7 @@ func singularFieldType(f *descriptor.FieldDescriptorProto) string {
 		descriptor.FieldDescriptorProto_TYPE_UINT64:
 		return "number"
 	case descriptor.FieldDescriptorProto_TYPE_ENUM:
-		return "number"
+		return removePkg(f.GetTypeName())
 	case descriptor.FieldDescriptorProto_TYPE_STRING:
 		return "string"
 	case descriptor.FieldDescriptorProto_TYPE_BOOL:

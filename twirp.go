@@ -35,7 +35,7 @@ export const throwTwirpError = (resp: Response) => {
   return resp.json().then((err: TwirpErrorJSON) => { throw new TwirpError(err) })
 }
 
-export const createTwirpRequest = (body: object = {}, headers = {}): object => {
+export const createTwirpRequest = (body: object = {}, headers: object = {}): object => {
   return {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },

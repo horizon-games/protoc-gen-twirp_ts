@@ -37,7 +37,7 @@ const enumTemplate = `
 export enum {{$enumName}} {
   {{- range $i, $v := .Values}}
   {{- if $i}},{{end}}
-  {{$v.Name}} = {{$v.Value}}
+  {{$v.Name}} = '{{$v.Name}}'
   {{- end}}
 }
 `
@@ -94,13 +94,19 @@ export class {{.Name}} implements {{.Interface}} {
   {{range .Fields}}
   // {{.Field}} ({{.Name}})
   public get {{.Field}}(): {{. | fieldType}} {
-    return this._json.{{.Name}}!
+    {{if .IsEnum}}
+      return (<any>{{. | fieldType}})[this._json.{{.Name}}!]
+    {{else if .IsRepeated}}
+      return this._json.{{.Name}} || []
+    {{else}}
+      return this._json.{{.Name}}!
+    {{end}}
   }
   public set {{.Field}}(value: {{. | fieldType}}) {
     this._json.{{.Name}} = value
   }
   {{end}}
-  static fromJSON(m: {{.JSONInterface}}): {{.Name}} {
+  static fromJSON(m: {{.JSONInterface}} = {}): {{.Name}} {
     return new {{.Name}}({
     {{range $i, $v := .Fields -}}
       {{- if $i}},
@@ -123,6 +129,7 @@ type fieldValues struct {
 	Name       string
 	Field      string
 	Type       string
+	IsEnum     bool
 	IsRepeated bool
 }
 
@@ -155,7 +162,7 @@ export class {{.Name}} implements {{.Interface}} {
   }
 
   {{range .Methods}}
-  public {{.Name | methodName}}(params: {{.InputType}}, headers = {}): Promise<{{.OutputType}}> {
+  public {{.Name | methodName}}(params: {{.InputType}}, headers: object = {}): Promise<{{.OutputType}}> {
     return this.fetch(
       this.url('{{.Name}}'),
       createTwirpRequest(params, headers)
@@ -275,6 +282,10 @@ func objectToField(fv fieldValues) string {
 	switch t {
 	case "string", "number", "boolean":
 		return fmt.Sprintf("m['%s']!", fv.Name)
+	}
+
+	if fv.IsEnum {
+		return fmt.Sprintf("(<any>%s)[m['%s']!]!", fv.Type, fv.Name)
 	}
 
 	return fmt.Sprintf("%s.fromJSON(m['%s']!)", t, fv.Name)
