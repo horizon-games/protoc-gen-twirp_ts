@@ -287,7 +287,7 @@ func objectToField(fv fieldValues) string {
 		return fmt.Sprintf("(<any>%s)[m['%s']!]!", fv.Type, fv.Name)
 	}
 
-	return fmt.Sprintf("%s.fromJSON(m['%s']!.toJSON())", t, fv.Name)
+	return fmt.Sprintf("%s.fromJSON(m['%s']!)", t, fv.Name)
 }
 
 func typeToInterface(typeName string) string {
