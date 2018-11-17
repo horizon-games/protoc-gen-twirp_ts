@@ -78,6 +78,7 @@ export interface {{.JSONInterface}} {
   {{- range $i, $v := .Fields}}
   {{$v.Name}}?: {{ $v | fieldType }}
   {{- end}}
+  toJSON?(): object
 }
 
 export class {{.Name}} implements {{.Interface}} {
