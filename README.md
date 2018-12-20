@@ -31,6 +31,13 @@ svc.ping().then((pong) => {
 });
 ```
 
+## Credits
+
+Based on some of the early work by Larry Myers at https://github.com/larrymyers/protoc-gen-twirp_typescript (MIT)
+
+
+## LICENSE
+
 > The MIT License
 >
 > Copyright 2018 Horizon Blockchain Games, Inc.
