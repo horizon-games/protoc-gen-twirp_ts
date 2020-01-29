@@ -164,7 +164,7 @@ export class {{.Name}} implements {{.Interface}} {
   {{range .Methods}}
   public {{.Name | methodName}}(params: {{.InputType}}, headers: object = {}): Promise<{{.OutputType}}> {
     return this.fetch(
-      this.url('{{.Name}}'),
+      this.url('{{.Name | title}}'),
       createTwirpRequest(params, headers)
     ).then((res) => {
       if (!res.ok) {
@@ -249,6 +249,7 @@ func compileAndExecute(tpl string, data interface{}) (string, error) {
 		"fieldType":     fieldType,
 		"methodName":    methodName,
 		"objectToField": objectToField,
+		"title":         strings.Title,
 	}
 
 	t, err := template.New("").Funcs(funcMap).Parse(tpl)
