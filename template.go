@@ -282,7 +282,7 @@ func objectToField(fv fieldValues) string {
 
 	switch t {
 	case "string", "number", "boolean":
-		return fmt.Sprintf("m['%s']!", fv.Name)
+		return fmt.Sprintf("%s(m['%s'])!", upperCaseFirst(t), fv.Name)
 	}
 
 	if fv.IsEnum {
