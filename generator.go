@@ -37,9 +37,7 @@ func (f *packageFile) protoFile() *protoFile {
 	return pf
 }
 
-var (
-	packageFiles = map[string]*packageFile{}
-)
+var packageFiles = map[string]*packageFile{}
 
 func addProtoToPackage(fileName string, pf *protoFile) {
 	if _, ok := packageFiles[fileName]; !ok {
@@ -318,6 +316,7 @@ func singularFieldType(m *descriptor.DescriptorProto, f *descriptor.FieldDescrip
 	case descriptor.FieldDescriptorProto_TYPE_BOOL:
 		return "boolean"
 	case descriptor.FieldDescriptorProto_TYPE_MESSAGE:
+		log.Println(">>>>>", m.GetName(), m.GetOptions().ProtoReflect().Descriptor())
 		name := f.GetTypeName()
 
 		// Google WKT Timestamp is a special case here:
@@ -331,10 +330,9 @@ func singularFieldType(m *descriptor.DescriptorProto, f *descriptor.FieldDescrip
 
 		return removePkg(name)
 	default:
-		//log.Printf("unknown type %q in field %q", f.GetType(), f.GetName())
+		// log.Printf("unknown type %q in field %q", f.GetType(), f.GetName())
 		return "string"
 	}
-
 }
 
 func fieldType(f *fieldValues) string {

@@ -1,12 +1,11 @@
 package main
 
 import (
-	"log"
-	"os"
-
 	"errors"
 	"io"
 	"io/ioutil"
+	"log"
+	"os"
 
 	"github.com/golang/protobuf/proto"
 	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
