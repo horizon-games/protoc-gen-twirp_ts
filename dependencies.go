@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
 )
@@ -31,12 +32,18 @@ func (d *dependencyResolver) Resolve(typeName string) (*descriptor.FileDescripto
 	return fp, nil
 }
 
-func (d *dependencyResolver) TypeName(fd *descriptor.FileDescriptorProto, typeName string) string {
-	orig, err := d.Resolve(fullTypeName(fd, typeName))
-	if err == nil {
-		if !samePackage(fd, orig) {
-			return importName(orig) + "." + typeName
-		}
+func (*dependencyResolver) TypeName(fd *descriptor.FileDescriptorProto, typeName string) string {
+	fieldTypeName := typeName
+	isFQN := fieldTypeName[0] == '.'
+	if !isFQN {
+		return fieldTypeName
 	}
-	return typeName
+	fieldTypeName = fieldTypeName[1:]
+
+	if strings.HasPrefix(fieldTypeName, fd.GetPackage()) {
+		fieldTypeName = strings.TrimPrefix(fieldTypeName, fd.GetPackage())
+		fieldTypeName = fieldTypeName[1:]
+	}
+
+	return strings.ReplaceAll(fieldTypeName, ".", "_")
 }
